@@ -1,0 +1,89 @@
+[tool.poetry]
+name = "rndi-cache-postgresql-adapter"
+version = "1.0.0"
+description = "PostgreSQL implementation of the Cache Interface for Python."
+authors = ["Sergio Palacio <Sergio.PalacioRodenas@cloudblue.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+packages = [
+    { include = "rndi" }
+]
+repository = ""
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Utilities",
+    "Topic :: Software Development :: Libraries",
+]
+keywords = [
+    "rndi",
+    "rnd-integration",
+    "cache",
+    "cache interface",
+    "cache contract",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8.1,<4"
+rndi-cache-interface = { git = "https://github.com/othercodes/python-cache-interface.git", branch = "master" }
+psycopg2 = "^2.9.5"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.2.0"
+pytest-cov = "^4.0.0"
+pytest-mock = "^3.10.0"
+flake8 = "^6.0.0"
+flake8-bugbear = "^22.12.6"
+flake8-cognitive-complexity = "^0.1"
+flake8-commas = "^2.1.0"
+flake8-import-order = "^0.18.2"
+flake8-pyproject = "^1.2.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.flake8]
+exclude = [
+    ".idea",
+    ".vscode",
+    ".git",
+    "pg_data",
+    "venv",
+    "*/settings/*.py",
+    "*/migrations/*.py",
+    "*nogit*"
+]
+show-source = true
+max-line-length = 120
+import-order-style = "smarkets"
+ignore = ["FI1", "I100", "W503", "FI58"]
+max-cognitive-complexity = 20
+
+[tool.pytest.ini_options]
+testpaths = "tests"
+addopts = "--cov=rndi.cache.adapters.postgresql --cov-report=term-missing:skip-covered --cov-report=html --cov-report=xml"
+
+[tool.coverage.run]
+omit = ["tests/*", "venv*/*", "setup.py"]
+relative_files = true
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __str__",
+    "def __repr__",
+    "import",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    '@(abc\.)?abstractmethod'
+]
+
+[tool.coverage.html]
+skip_covered = true
