@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from abc import ABCMeta, abstractmethod
 from logging import LoggerAdapter
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
 import pytest
-from rndi.cache.adapters.postgresql.adapter import provide_postgresql_cache_adapter
+from rndi.cache.adapters.postgresql.adapter import PostgreSQLCacheAdapter
 from rndi.cache.contracts import Cache
 from rndi.cache.provider import provide_cache
 
@@ -24,7 +25,7 @@ def adapters(logger):
         ]
 
         extra = {
-            'postgresql': provide_postgresql_cache_adapter,
+            'postgresql': provide_test_postgresql_cache_adapter,
         }
 
         return [provide_cache(setup, logger(), extra) for setup in setups]
@@ -63,3 +64,39 @@ def counter():
         return Counter.make(reset)
 
     return __
+
+
+class HasEntry(metaclass=ABCMeta):  # pragma: no cover
+    @abstractmethod
+    def get_entry(self, key: str) -> Optional[Dict[str, Union[str, int]]]:
+        """
+        Get an entry from the cache, not only the value.
+        This is useful for testing purposes when we want to validate the TTL.
+        :param key: str The key to search for.
+        :return: Optional[Dict[str, Union[str, int]]] The entry if found, None otherwise.
+        """
+
+
+class PostgreSQLCacheAdapterTester(PostgreSQLCacheAdapter, HasEntry):
+    def get_entry(self, key: str) -> Optional[Dict[str, Union[str, int]]]:
+        with self.connection as _connection:
+            cur = _connection.cursor()
+            cur.execute(self._get_sql, (key,))
+            entry = cur.fetchone()
+
+        if entry is None:
+            return None
+
+        return {
+            'value': entry[0],
+            'expire_at': entry[1],
+        }
+
+
+def provide_test_postgresql_cache_adapter(config: dict) -> Cache:
+    return PostgreSQLCacheAdapterTester(
+        host=config.get('CACHE_POSTGRESQL_HOST', 'localhost'),
+        database_name=config.get('CACHE_POSTGRESQL_DATABASE_NAME', 'cache'),
+        user_name=config.get('CACHE_POSTGRESQL_USER_NAME', 'postgres'),
+        password=config.get('CACHE_POSTGRESQL_PASSWORD', 'postgres'),
+    )
