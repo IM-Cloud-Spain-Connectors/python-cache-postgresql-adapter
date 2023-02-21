@@ -16,8 +16,8 @@ def provide_postgresql_cache_adapter(config: dict) -> Cache:
     return PostgreSQLCacheAdapter(
         host=config.get('CACHE_POSTGRESQL_HOST', 'localhost'),
         database_name=config.get('CACHE_POSTGRESQL_DATABASE_NAME', 'cache'),
-        user_name=config.get('CACHE_POSTGRESQL_USER_NAME', 'cache'),
-        password=config.get('CACHE_POSTGRESQL_PASSWORD', 'cache'),
+        user_name=config.get('CACHE_POSTGRESQL_USER_NAME', 'postgres'),
+        password=config.get('CACHE_POSTGRESQL_PASSWORD', 'postgres'),
     )
 
 
@@ -35,6 +35,7 @@ class PostgreSQLCacheAdapter(Cache):
     _insert_sql = 'INSERT INTO entries (key, value, expire_at) VALUES (%s, %s, %s) ' \
                   ' ON CONFLICT(key) DO UPDATE SET key = EXCLUDED.key, value = EXCLUDED.value,' \
                   ' expire_at = EXCLUDED.expire_at'
+    _update_ttl = 'UPDATE entries SET expire_at = %s WHERE key = %s'
     _clear_sql = 'DELETE FROM entries'
 
     def __init__(
@@ -82,7 +83,7 @@ class PostgreSQLCacheAdapter(Cache):
     def has(self, key: str) -> bool:
         return self.get(key) is not None
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Any = None, ttl: Optional[int] = None) -> Any:
         try:
             with self.connection as _connection:
                 cur = _connection.cursor()
@@ -97,10 +98,12 @@ class PostgreSQLCacheAdapter(Cache):
                 with self.connection as _connection:
                     _connection.cursor().execute(self._del_sql, (key,))
                 raise StopIteration
-
+            if ttl is not None:
+                with self.connection as _connection:
+                    _connection.cursor().execute(self._update_ttl, (ttl + round(time.time()), key))
             return jsonpickle.decode(row[0])
         except StopIteration:
-            ttl = self.ttl
+            ttl = ttl if ttl else self.ttl
             value = default() if callable(default) else default
 
             if isinstance(value, tuple):
@@ -110,7 +113,7 @@ class PostgreSQLCacheAdapter(Cache):
 
     def put(self, key: str, value: Any, ttl: Optional[int] = None) -> Any:
         serialized = jsonpickle.encode(value)
-        expire_at = (self.ttl if ttl is None else ttl) + time.time()
+        expire_at = (self.ttl if ttl is None else ttl) + round(time.time())
         with self.connection as _connection:
             cursor = _connection.cursor()
             cursor.execute(self._insert_sql, (key, serialized, expire_at))
@@ -126,7 +129,7 @@ class PostgreSQLCacheAdapter(Cache):
         with self.connection as _connection:
             cursor = _connection.cursor()
             if expired_only:
-                cursor.execute(self._del_expired_sql, (time.time(),))
+                cursor.execute(self._del_expired_sql, (round(time.time()),))
             else:
                 cursor.execute(self._clear_sql, ())
 
