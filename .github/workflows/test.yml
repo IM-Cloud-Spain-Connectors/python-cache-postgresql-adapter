@@ -47,3 +47,70 @@ jobs:
 
       - name: Test Execution
         run: poetry run pytest
+
+  checkmarx:
+    needs: test
+    
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [ '3.11' ]
+
+    steps:
+      - name: Source Code Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Environment Setup (Python ${{ matrix.python-version }})
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: |
+          pip install poetry
+          poetry check
+          poetry install
+
+      - name: Checkmarx scan
+        env:
+          CHECKMARX_PROJECT_ID: "68fa1de6-0604-4c5f-9f1f-65738bf0c1c5"
+          CX_CLIENT_ID: ${{ secrets.CX_CLIENT_ID }}
+          CX_CLIENT_SECRET: ${{ secrets.CX_CLIENT_SECRET }}
+        run: |
+          mkdir cx
+          wget -q 'https://download.checkmarx.com/CxOne/CLI/latest/ast-cli_linux_x64.tar.gz' -P cx
+          mkdir cx/checkmarx
+          tar -xzf cx/ast-cli_linux_x64.tar.gz --directory cx/checkmarx
+          wget -q 'https://sca-downloads.s3.amazonaws.com/cli/latest/ScaResolver-linux64.tar.gz' -P cx
+          mkdir cx/scaresolver
+          tar -xzf cx/ScaResolver-linux64.tar.gz --directory cx/scaresolver
+          mv cx /opt/
+
+          CHECKMARX_PROJECT_NAME=`/opt/cx/checkmarx/cx project list \
+            --tenant "ingram-micro" \
+            --client-id "$CX_CLIENT_ID" \
+            --client-secret "$CX_CLIENT_SECRET" \
+            --base-auth-uri "https://iam.checkmarx.net/" \
+            --base-uri "https://ast.checkmarx.net/" \
+            --filter "ids=$CHECKMARX_PROJECT_ID" \
+            --format list | grep "Name" | awk '{$1=$2=""; print $0}' | xargs`
+
+          /opt/cx/checkmarx/cx scan create --file-source "${GITHUB_WORKSPACE}" \
+            --file-filter '!src/test,!target' \
+            --agent 'Github' \
+            --project-name "$CHECKMARX_PROJECT_NAME" \
+            --branch "${GITHUB_REF##*/}" \
+            --tenant 'ingram-micro' \
+            --client-id "$CX_CLIENT_ID" \
+            --client-secret "$CX_CLIENT_SECRET" \
+            --base-auth-uri 'https://iam.checkmarx.net/' \
+            --base-uri 'https://ast.checkmarx.net/' \
+            --sca-resolver '/opt/cx/scaresolver/ScaResolver' \
+            --sca-resolver-params '--scan-containers' \
+            --sast-incremental \
+            --scan-types 'sast,sca,iac-security' \
+            --async
+      
