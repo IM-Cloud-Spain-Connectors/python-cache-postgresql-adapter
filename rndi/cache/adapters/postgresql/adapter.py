@@ -18,6 +18,8 @@ def provide_postgresql_cache_adapter(config: dict) -> Cache:
         database_name=config.get('CACHE_POSTGRESQL_DATABASE_NAME', 'cache'),
         user_name=config.get('CACHE_POSTGRESQL_USER_NAME', 'postgres'),
         password=config.get('CACHE_POSTGRESQL_PASSWORD', 'postgres'),
+        ttl=int(config.get('CACHE_TTL', 900)),
+        port=int(config.get('CACHE_POSTGRESQL_PORT', 5432)),
     )
 
 
