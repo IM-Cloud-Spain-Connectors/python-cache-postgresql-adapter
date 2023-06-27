@@ -13,10 +13,10 @@ jobs:
         python-version: [ '3.8', '3.9', '3.10', '3.11' ]
     services:
       postgres:
-        image: 'postgres:latest'
+        image: postgres:14.7
         env:
-          POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
           POSTGRES_DB: cache
         ports:
           - 5432:5432
